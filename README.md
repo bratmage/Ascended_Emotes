@@ -1,5 +1,5 @@
 # Ascended Emotes!
-### A message and emote extended for WoW 3.3.5 Clients
+### Extended message and emotes for WoW 3.3.5 Clients
 Viva La Turtle 🐢
 
 An addon that allows you to send messages in any channel, including emotes, that extend past the 255 character limit.
