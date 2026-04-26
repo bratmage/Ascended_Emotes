@@ -2,7 +2,7 @@
 ## Title: |cffFFACD8Ascended Emotes|r
 ## Notes: |cff5bcefa/|cff78c7ed/|cff95c0e4B|cffb2b9dbr|cffcfb2d2a|cffecabc9t|cfff6b5c2m|cfff8c6cca|cfffad7d6g|cfffce8e0e|cffffffff/|cffffffff/|r Send messages past the 255 character limit in wotlk environments!
 ## Author: |cff5bcefa/|cff78c7ed/|cff95c0e4B|cffb2b9dbr|cffcfb2d2a|cffecabc9t|cfff6b5c2m|cfff8c6cca|cfffad7d6g|cfffce8e0e|cffffffff/|cffffffff/|r
-## Version: 1.0.0
+## Version: 1.1.0
 ## OptionalDeps: ElvUI, TotalRP3, TranquilRP3
 
 Ascended_Emotes.lua
