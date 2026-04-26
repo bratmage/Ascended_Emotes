@@ -13,9 +13,35 @@ local hooksInstalled
 local originalOnEnterPressed = {}
 local onChatEditShow
 local elvUIBubblePatched
+local slashChatTypes = {
+    s = "SAY",
+    say = "SAY",
+    e = "EMOTE",
+    em = "EMOTE",
+    me = "EMOTE",
+    emote = "EMOTE",
+    yell = "YELL",
+    y = "YELL",
+    p = "PARTY",
+    party = "PARTY",
+    g = "GUILD",
+    guild = "GUILD",
+    raid = "RAID",
+    ra = "RAID",
+    i = "INSTANCE_CHAT",
+    bg = "BATTLEGROUND",
+}
 
 local function trimTrailingSpaces(text)
     return (text:gsub("%s+$", ""))
+end
+
+local function normalizeManualBreaks(text)
+    if not text or text == "" then
+        return text
+    end
+
+    return text:gsub("\r\n", "\n"):gsub("\r", "\n"):gsub("\\n", "\n")
 end
 
 local function usesTRP3EmoteSuppression(text)
@@ -31,6 +57,8 @@ local function stripTRP3EmoteSuppression(text)
 end
 
 local function shouldSplitMessage(text)
+    text = normalizeManualBreaks(text)
+
     if not text or text == "" then
         return false
     end
@@ -40,6 +68,29 @@ local function shouldSplitMessage(text)
     end
 
     return string.len(text) > MAX_CHAT_BYTES
+end
+
+local function parseSlashChatMessage(text, defaultLanguage)
+    if not text or text:sub(1, 1) ~= "/" then
+        return nil
+    end
+
+    local command, body = text:match("^/(%S+)%s*(.-)$")
+    if not command then
+        return nil
+    end
+
+    local chatType = slashChatTypes[string.lower(command)]
+    if not chatType or body == "" then
+        return nil
+    end
+
+    return {
+        chatType = chatType,
+        message = body,
+        language = defaultLanguage,
+        target = nil,
+    }
 end
 
 local function getChunk(text, startIndex, maxBytes)
@@ -80,7 +131,7 @@ end
 
 local function buildChunks(text, chatType)
     local chunks = {}
-    local strippedText = stripTRP3EmoteSuppression(text)
+    local strippedText = normalizeManualBreaks(stripTRP3EmoteSuppression(text))
     local startIndex = 1
     local chunkIndex = 1
 
@@ -130,7 +181,7 @@ local function startNextQueuedMessage()
     activeEntry = table.remove(queue, 1)
     activeEntry.nextSendAt = 0
 
-    -- this is the lil delay. dont want to get the server mad for chat throttling but this also beats the spamming enter key from emote splitter retail. can change it up if we get issues later.
+    -- this is the lil delay. dont want to get the server mad for chat throttling but this also beats the spamming enter key from emote splitter retail. can change it up if we get issues later. editable in the locals.
     AscendedEmotes:SetScript("OnUpdate", function(_, elapsed)
         if not activeEntry then
             AscendedEmotes:SetScript("OnUpdate", nil)
@@ -168,6 +219,33 @@ local function queueChunks(chunks, chatType, language, target)
     startNextQueuedMessage()
 end
 
+local function queueParsedMessage(editBox, parsed, originalText, addHistory)
+    if not parsed or not parsed.chatType or not shouldSplitMessage(parsed.message) then
+        return false
+    end
+
+    local chunks = buildChunks(parsed.message, parsed.chatType)
+    if #chunks <= 1 then
+        return false
+    end
+
+    queueChunks(chunks, parsed.chatType, parsed.language, parsed.target)
+
+    if addHistory and ChatEdit_AddHistory then
+        local previousText = editBox:GetText()
+        editBox:SetText(originalText)
+        ChatEdit_AddHistory(editBox)
+        editBox:SetText(previousText)
+    end
+
+    if ChatTypeInfo[parsed.chatType] and ChatTypeInfo[parsed.chatType].sticky == 1 then
+        editBox:SetAttribute("stickyType", parsed.chatType)
+    end
+
+    ChatEdit_OnEscapePressed(editBox)
+    return true
+end
+
 local function unlockEditBox(editBox)
     if not editBox then
         return
@@ -190,9 +268,8 @@ local function unlockEditBox(editBox)
     end
 end
 
-local function sendQueuedFromEditBox(editBox, addHistory)
+local function queueFromEditBox(editBox, text, addHistory)
     local chatType = editBox:GetAttribute("chatType")
-    local text = editBox:GetText()
 
     if not chatType or not shouldSplitMessage(text) then
         return false
@@ -228,12 +305,26 @@ end
 local function handleEnterPressed(editBox)
     unlockEditBox(editBox)
 
-    if sendQueuedFromEditBox(editBox, true) then
+    local text = editBox:GetText() or ""
+    if text:sub(1, 1) == "/" then
+        local parsed = parseSlashChatMessage(text, editBox.language)
+        if parsed and queueParsedMessage(editBox, parsed, text, true) then
+            return
+        end
+
+        local original = originalOnEnterPressed[editBox]
+        if original then
+            return original(editBox)
+        end
+        return
+    end
+
+    if queueFromEditBox(editBox, text, true) then
         return
     end
 
     local original = originalOnEnterPressed[editBox]
-    if original then
+    if original and not shouldSplitMessage(text) then
         return original(editBox)
     end
 end
@@ -244,7 +335,6 @@ local function hookEditBox(editBox)
     end
 
     unlockEditBox(editBox)
-    -- Hook the edit box locally instead of replacing Blizzard's global send path. Was having some macro taints. ascension has a very nice debugger!!
     originalOnEnterPressed[editBox] = editBox:GetScript("OnEnterPressed")
     editBox:SetScript("OnEnterPressed", handleEnterPressed)
     editBox.ascendedEmotesHooked = true
