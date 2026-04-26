@@ -3,6 +3,12 @@
 Viva La Turtle 🐢
 
 An addon that allows you to send messages in any channel, including emotes, that extend past the 255 character limit.
+Also features a manual message break by typing \n
+Now your paragraph+ can actually be paragraphs!
+--- 
+## Changelog
+### 1.1.0
+- Small patch to add compatability with Faebright- should now function on basically all 3.3.5 clients.
 
 ---
 
